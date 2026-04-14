@@ -1,0 +1,8 @@
+.vscode
+build
+versions
+Old
+mnist_train.csv/
+mnist_train.csv
+mnist_test.csv/
+mnist_test.csv

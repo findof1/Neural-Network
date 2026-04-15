@@ -13,6 +13,7 @@
 #include <QThread>
 #include <QTimer>
 #include "neuralNetworkUtils.hpp"
+#include "trainer.hpp"
 
 class AppInterface : public QWidget
 {
@@ -63,8 +64,6 @@ public:
 
     topRow->addWidget(configBox, 1);
 
-    // Todo: add live stats
-    /*
     auto *statsBox = new QGroupBox("Live Stats");
     auto *statsLayout = new QVBoxLayout(statsBox);
 
@@ -85,7 +84,6 @@ public:
     log = new QTextEdit();
     log->setReadOnly(true);
     root->addWidget(log, 1);
-    */
 
     connect(startBtn, &QPushButton::clicked, this, &AppInterface::startTraining);
   }
@@ -93,79 +91,67 @@ public:
 private slots:
   void startTraining()
   {
-    // add live stats stuff here
-    train();
+    thread = new QThread(this);
+    trainer = new Trainer();
+
+    trainer->moveToThread(thread);
+
+    connect(thread, &QThread::started, trainer, [this]()
+            { trainer->run(
+                  epochs->value(),
+                  batchSize->value(),
+                  (float)learningRate->value()); });
+
+    connect(trainer, &Trainer::statsUpdated,
+            this, &AppInterface::updateStats,
+            Qt::QueuedConnection);
+
+    connect(trainer, &Trainer::finished,
+            this, &AppInterface::trainingFinished);
+
+    connect(trainer, &Trainer::printLog,
+            this, &AppInterface::printLog,
+            Qt::QueuedConnection);
+
+    connect(trainer, &Trainer::finished, thread, &QThread::quit);
+    connect(thread, &QThread::finished, trainer, &QObject::deleteLater);
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+
+    thread->start();
   }
 
-  void train()
+  void trainingFinished()
   {
-    Network net;
-    net.config.epochs = epochs->value();
-    net.config.learningRate = static_cast<float>(learningRate->value());
-    net.config.batchSize = batchSize->value();
-    // Digit Guesser:
-    addLayer(net, 784, 256, ReLU);
-    addLayer(net, 256, 128, ReLU);
-    addLayer(net, 128, 64, ReLU);
-    addLayer(net, 64, 10, SoftMax);
+    log->append("Training Complete");
+  }
 
-    // Example reconstruction network:
-    // addLayer(net, 784, 128, ReLU);
-    // addLayer(net, 128, 64, ReLU);
-    // addLayer(net, 64, 128, ReLU);
-    // addLayer(net, 128, 784, Sigmoid);
+  void updateStats(int epoch, float loss, float acc, int percent)
+  {
+    epochLabel->setText("Epoch: " + QString::number(epoch));
+    lossLabel->setText("Loss: " + QString::number(loss));
+    accuracyLabel->setText("Accuracy: " + QString::number(acc * 100.0f) + "%");
+    progress->setValue(percent);
 
-    std::cout << "Loading Training Dataset..." << std::endl;
-    Dataset dataset = loadMNISTCSV("mnist_train.csv");
+    log->append("Epoch " + QString::number(epoch) +
+                " Loss: " + QString::number(loss));
+  }
 
-    std::cout << "Loading Test Dataset..." << std::endl;
-    Dataset testDataset = loadMNISTCSV("mnist_test.csv");
-
-    std::cout << "Beginning Training..." << std::endl;
-    float totalLoss = 0.0f;
-    std::mt19937 rng(std::random_device{}());
-    int count = 0;
-    for (int epoch = 0; epoch < net.config.epochs; epoch++)
-    {
-      std::shuffle(dataset.samples.begin(), dataset.samples.end(), rng);
-      totalLoss = 0.0f;
-
-      count = 0;
-
-      for (auto &sample : dataset.samples)
-      {
-        forwardPass(net, sample.inputs);
-
-        totalLoss += computeCostCrossEntropy(net, sample);
-
-        backpropagation(net, sample);
-
-        count++;
-
-        if (count % net.config.batchSize == 0)
-        {
-          applyGradients(net);
-        }
-      }
-
-      if (epoch % net.config.epochDisplayInterval == 0)
-      {
-        std::cout << "Epoch " << epoch << " Loss: " << totalLoss / dataset.samples.size() << std::endl;
-      }
-    }
-    std::cout << "\nFinal Output:" << std::endl;
-    std::cout << "Total Epochs " << net.config.epochs << " Loss: " << totalLoss / dataset.samples.size() << std::endl;
-    std::cout << "Accuracy:" << computeAccuracy(net, testDataset) << std::endl;
+  void printLog(const QString &str)
+  {
+    log->append(str);
   }
 
 private:
   QPushButton *startBtn;
-  // QLabel *epochLabel;
-  // QLabel *lossLabel;
-  // QLabel *accuracyLabel;
-  // QTextEdit *log;
-  // QProgressBar *progress;
+  QLabel *epochLabel;
+  QLabel *lossLabel;
+  QLabel *accuracyLabel;
+  QTextEdit *log;
+  QProgressBar *progress;
   QSpinBox *epochs;
   QSpinBox *batchSize;
   QDoubleSpinBox *learningRate;
+
+  QThread *thread;
+  Trainer *trainer;
 };

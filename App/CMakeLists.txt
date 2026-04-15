@@ -13,6 +13,7 @@ file(GLOB_RECURSE APP_SRC "${CMAKE_SOURCE_DIR}/App/src/*.cpp")
 add_executable(App
     ${APP_SRC}
     "${CMAKE_SOURCE_DIR}/App/Include/interface.hpp" #for automoc
+    "${CMAKE_SOURCE_DIR}/App/Include/trainer.hpp" #for automoc
 )
 
 set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG")

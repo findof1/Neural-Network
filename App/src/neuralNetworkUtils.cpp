@@ -195,7 +195,7 @@ Dataset loadMNISTCSV(const std::string &path)
         ptr++;
     }
 
-    // sample.targets = sample.inputs; //for if I want to do image reconstruction
+    sample.targets = sample.inputs; // for if I want to do image reconstruction
     dataset.samples.push_back(std::move(sample));
   }
 
@@ -246,24 +246,4 @@ float computeAccuracy(Network &net, const Dataset &dataset)
   }
 
   return static_cast<float>(correct) / dataset.samples.size();
-}
-
-QImage vectorToImage(const Eigen::VectorXf &v)
-{
-  QImage img(28, 28, QImage::Format_Grayscale8);
-
-  for (int y = 0; y < 28; y++)
-  {
-    for (int x = 0; x < 28; x++)
-    {
-      int i = y * 28 + x;
-
-      int value = static_cast<int>(v[i] * 255.0f);
-      value = std::clamp(value, 0, 255);
-
-      img.setPixel(x, y, qRgb(value, value, value));
-    }
-  }
-
-  return img;
 }

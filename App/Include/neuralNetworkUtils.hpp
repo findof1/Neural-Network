@@ -69,4 +69,3 @@ void addLayer(Network &net, int inputSize, int outputSize, LayerActivationType a
 Dataset loadMNISTCSV(const std::string &path);
 int predict(Network &net, const Eigen::VectorXf &input);
 float computeAccuracy(Network &net, const Dataset &dataset);
-QImage vectorToImage(const Eigen::VectorXf &v);

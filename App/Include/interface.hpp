@@ -85,7 +85,65 @@ public:
     log->setReadOnly(true);
     root->addWidget(log, 1);
 
+    inputImageLabel = new QLabel();
+    inputImageLabel->setFixedSize(280, 280);
+    inputImageLabel->setAlignment(Qt::AlignCenter);
+    inputImageLabel->setStyleSheet("border: 1px solid gray;");
+
+    root->addWidget(inputImageLabel);
+
+    outputImageLabel = new QLabel();
+    outputImageLabel->setFixedSize(280, 280);
+    outputImageLabel->setAlignment(Qt::AlignCenter);
+    outputImageLabel->setStyleSheet("border: 1px solid gray;");
+
+    root->addWidget(outputImageLabel);
+
     connect(startBtn, &QPushButton::clicked, this, &AppInterface::startTraining);
+  }
+
+  void showSampleImage(const Eigen::VectorXf &vec, bool input)
+  {
+    const int w = 28;
+    const int h = 28;
+
+    QImage img(w, h, QImage::Format_Grayscale8);
+
+    for (int y = 0; y < h; y++)
+    {
+      for (int x = 0; x < w; x++)
+      {
+        int index = y * w + x;
+
+        float v = vec(index);
+
+        if (v < 0.0f)
+          v = 0.0f;
+        if (v > 1.0f)
+          v = 1.0f;
+
+        int pixel = static_cast<int>(v * 255.0f);
+
+        img.setPixel(x, y, pixel);
+      }
+    }
+
+    if (input)
+    {
+      inputImageLabel->setPixmap(
+          QPixmap::fromImage(img).scaled(
+              inputImageLabel->size(),
+              Qt::KeepAspectRatio,
+              Qt::FastTransformation));
+    }
+    else
+    {
+      outputImageLabel->setPixmap(
+          QPixmap::fromImage(img).scaled(
+              outputImageLabel->size(),
+              Qt::KeepAspectRatio,
+              Qt::FastTransformation));
+    }
   }
 
 private slots:
@@ -104,6 +162,10 @@ private slots:
 
     connect(trainer, &Trainer::statsUpdated,
             this, &AppInterface::updateStats,
+            Qt::QueuedConnection);
+
+    connect(trainer, &Trainer::showSampleImage,
+            this, &AppInterface::showSampleImage,
             Qt::QueuedConnection);
 
     connect(trainer, &Trainer::finished,
@@ -151,6 +213,8 @@ private:
   QSpinBox *epochs;
   QSpinBox *batchSize;
   QDoubleSpinBox *learningRate;
+  QLabel *inputImageLabel;
+  QLabel *outputImageLabel;
 
   QThread *thread;
   Trainer *trainer;

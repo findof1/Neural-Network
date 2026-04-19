@@ -17,11 +17,12 @@
 class Trainer : public QObject
 {
   Q_OBJECT
+public:
+  Network net;
 
 public slots:
   void run(int epochs, int batchSize, float lr)
   {
-    Network net;
     net.config.epochs = epochs;
     net.config.batchSize = batchSize;
     net.config.learningRate = lr;
@@ -31,12 +32,10 @@ public slots:
     // addLayer(net, 128, 64, ReLU);
     // addLayer(net, 64, 10, SoftMax);
 
-    addLayer(net, 784, 256, ReLU);
-    addLayer(net, 256, 128, ReLU);
+    addLayer(net, 784, 128, ReLU);
     addLayer(net, 128, 64, ReLU);
     addLayer(net, 64, 128, ReLU);
-    addLayer(net, 128, 256, ReLU);
-    addLayer(net, 256, 784, Sigmoid);
+    addLayer(net, 128, 784, Sigmoid);
 
     emit printLog("Loading Training Dataset");
     QString base = QCoreApplication::applicationDirPath();
@@ -87,9 +86,7 @@ public slots:
 
     for (const auto &sample : dataset.samples)
     {
-      emit showSampleImage(sample.targets, true);
       forwardPass(net, sample.inputs);
-      emit showSampleImage(net.layers.back().a, false);
 
       const Eigen::VectorXf &output = net.layers.back().a;
       const Eigen::VectorXf &target = sample.targets;

@@ -14,11 +14,17 @@
 #include <QTimer>
 #include "neuralNetworkUtils.hpp"
 #include "trainer.hpp"
+#include "ganTrainer.hpp"
 
 class AppInterface : public QWidget
 {
   Q_OBJECT
 public:
+  Network trainedNet;
+  bool modelReady = false;
+  GANNetwork trainedGAN;
+  bool ganModelReady = false;
+
   AppInterface(QWidget *parent = nullptr) : QWidget(parent)
   {
     setWindowTitle("Neural Network App");
@@ -85,21 +91,33 @@ public:
     log->setReadOnly(true);
     root->addWidget(log, 1);
 
+    auto *realtimeRow = new QHBoxLayout();
+    root->addLayout(realtimeRow);
+    auto *realtimeBox = new QGroupBox("Realtime Testing");
+    auto *realtimeLayout = new QVBoxLayout(realtimeBox);
+
+    testBtn = new QPushButton("Test Random Sample");
+    realtimeLayout->addWidget(testBtn);
+
     inputImageLabel = new QLabel();
     inputImageLabel->setFixedSize(280, 280);
     inputImageLabel->setAlignment(Qt::AlignCenter);
     inputImageLabel->setStyleSheet("border: 1px solid gray;");
 
-    root->addWidget(inputImageLabel);
+    realtimeLayout->addWidget(inputImageLabel, 1);
 
     outputImageLabel = new QLabel();
     outputImageLabel->setFixedSize(280, 280);
     outputImageLabel->setAlignment(Qt::AlignCenter);
     outputImageLabel->setStyleSheet("border: 1px solid gray;");
 
-    root->addWidget(outputImageLabel);
+    realtimeLayout->addWidget(outputImageLabel, 2);
 
-    connect(startBtn, &QPushButton::clicked, this, &AppInterface::startTraining);
+    realtimeRow->addWidget(realtimeBox);
+
+    connect(startBtn, &QPushButton::clicked, this, &AppInterface::startTrainingGAN);
+
+    connect(testBtn, &QPushButton::clicked, this, &AppInterface::testRandomSample);
   }
 
   void showSampleImage(const Eigen::VectorXf &vec, bool input)
@@ -147,10 +165,47 @@ public:
   }
 
 private slots:
+  void startTrainingGAN()
+  {
+    thread = new QThread(this);
+    ganTrainer = new GANTrainer();
+    ganModelReady = false;
+
+    ganTrainer->moveToThread(thread);
+
+    connect(thread, &QThread::started, ganTrainer, [this]()
+            { ganTrainer->run(
+                  epochs->value(),
+                  batchSize->value(),
+                  (float)learningRate->value()); });
+
+    connect(ganTrainer, &GANTrainer::statsUpdated,
+            this, &AppInterface::updateStats,
+            Qt::QueuedConnection);
+
+    connect(ganTrainer, &GANTrainer::showSampleImage,
+            this, &AppInterface::showSampleImage,
+            Qt::QueuedConnection);
+
+    connect(ganTrainer, &GANTrainer::finished,
+            this, &AppInterface::ganTrainingFinished);
+
+    connect(ganTrainer, &GANTrainer::printLog,
+            this, &AppInterface::printLog,
+            Qt::QueuedConnection);
+
+    connect(ganTrainer, &GANTrainer::finished, thread, &QThread::quit);
+    connect(thread, &QThread::finished, ganTrainer, &QObject::deleteLater);
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+
+    thread->start();
+  }
+
   void startTraining()
   {
     thread = new QThread(this);
     trainer = new Trainer();
+    modelReady = false;
 
     trainer->moveToThread(thread);
 
@@ -182,9 +237,56 @@ private slots:
     thread->start();
   }
 
+  void testRandomSample()
+  {
+    /*
+    if (!modelReady)
+    {
+      log->append("Error: Cannot test sample on invalid model");
+      return;
+    }
+
+    emit printLog("Loading Test Dataset");
+    QString base = QCoreApplication::applicationDirPath();
+    Dataset testDataset = loadMNISTCSV((base + "/mnist_test/mnist_test.csv").toStdString());
+    std::mt19937 rng(std::random_device{}());
+
+    int index = std::uniform_int_distribution<int>(0, testDataset.samples.size() - 1)(rng);
+
+    Sample &sample = testDataset.samples[index];
+    showSampleImage(sample.targets, true);
+    forwardPass(trainedNet, sample.inputs);
+    showSampleImage(trainedNet.layers.back().a, false);*/
+
+    if (!ganModelReady)
+    {
+      log->append("Error: Cannot test sample on invalid gan model");
+      return;
+    }
+    Eigen::VectorXf z(100);
+
+    std::mt19937 rng(std::random_device{}());
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+    for (int i = 0; i < 100; i++)
+      z(i) = dist(rng);
+    forwardPass(trainedGAN.generator, z);
+    showSampleImage(trainedGAN.generator.layers.back().a, true);
+  }
+
   void trainingFinished()
   {
     log->append("Training Complete");
+
+    trainedNet = trainer->net;
+    modelReady = true;
+  }
+
+  void ganTrainingFinished()
+  {
+    log->append("Training Complete");
+
+    trainedGAN = ganTrainer->net;
+    ganModelReady = true;
   }
 
   void updateStats(int epoch, float loss, float acc, int percent)
@@ -205,6 +307,7 @@ private slots:
 
 private:
   QPushButton *startBtn;
+  QPushButton *testBtn;
   QLabel *epochLabel;
   QLabel *lossLabel;
   QLabel *accuracyLabel;
@@ -218,4 +321,5 @@ private:
 
   QThread *thread;
   Trainer *trainer;
+  GANTrainer *ganTrainer;
 };

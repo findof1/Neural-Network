@@ -14,11 +14,12 @@ add_executable(App
     ${APP_SRC}
     "${CMAKE_SOURCE_DIR}/App/Include/interface.hpp" #for automoc
     "${CMAKE_SOURCE_DIR}/App/Include/trainer.hpp" #for automoc
+    "${CMAKE_SOURCE_DIR}/App/Include/ganTrainer.hpp" #for automoc
 )
 
 set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG")
 target_compile_definitions(App PRIVATE EIGEN_NO_DEBUG)
 target_compile_definitions(App PRIVATE EIGEN_DONT_PARALLELIZE=0)
 set(ENV{OMP_NUM_THREADS} 4)
-#target_compile_definitions(App PRIVATE NDEBUG)
+target_compile_definitions(App PRIVATE NDEBUG)
 target_link_libraries(App PRIVATE Qt6::Widgets)

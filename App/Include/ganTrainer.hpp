@@ -56,43 +56,62 @@ public slots:
       {
         std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
 
-        const int latentSize = 100;
-
-        Eigen::VectorXf z(latentSize);
-
-        for (int i = 0; i < latentSize; i++)
+        Eigen::VectorXf z(100);
+        for (int i = 0; i < 100; i++)
           z(i) = dist(rng);
 
         forwardPass(net.generator, z);
         Eigen::VectorXf fakeData = net.generator.layers.back().a;
+
+        forwardPass(net.discriminator, sample.inputs);
+
+        Sample realSample;
+        realSample.inputs = sample.inputs;
+        realSample.targets = Eigen::VectorXf(2);
+        realSample.targets << 1.0f, 0.0f;
+
+        discriminatorBackpropagation(net, realSample);
+
         forwardPass(net.discriminator, fakeData);
-        Eigen::VectorXf fakeOut = net.discriminator.layers.back().a;
 
         Sample fakeSample;
         fakeSample.inputs = fakeData;
         fakeSample.targets = Eigen::VectorXf(2);
         fakeSample.targets << 0.0f, 1.0f;
+
         discriminatorBackpropagation(net, fakeSample);
 
-        Eigen::VectorXf fakeGradient = net.discriminator.layers[0].W.transpose() * net.discriminator.layers[0].delta;
+        applyGradients(net.discriminator);
+
+        Eigen::VectorXf realOut = net.discriminator.layers.back().a;
+
+        forwardPass(net.generator, z);
+        fakeData = net.generator.layers.back().a;
+
+        forwardPass(net.discriminator, fakeData);
+
+        Sample genTarget;
+        genTarget.inputs = fakeData;
+        genTarget.targets = Eigen::VectorXf(2);
+        genTarget.targets << 1.0f, 0.0f;
+
+        Eigen::VectorXf fakeGradient = getInputGradient(net, genTarget);
+
         generatorBackpropagation(net, z, fakeGradient);
 
-        Sample realCopy = sample;
-        realCopy.targets = Eigen::VectorXf(2);
-        realCopy.targets << 1.0f, 0.0f;
+        applyGradients(net.generator);
 
-        forwardPass(net.discriminator, realCopy.inputs);
-        Eigen::VectorXf realOut = net.discriminator.layers.back().a;
-        discriminatorBackpropagation(net, realCopy);
-
-        totalLossGen += computeGeneratorLoss(fakeOut);
+        Eigen::VectorXf fakeOut = net.discriminator.layers.back().a;
         totalLossDis += computeDiscriminatorLoss(realOut, fakeOut);
+        totalLossGen += computeGeneratorLoss(fakeOut);
+
         count++;
 
         if (count % net.generator.config.batchSize == 0)
         {
-          applyGradients(net.generator);
-          applyGradients(net.discriminator);
+          // add back if I fix batching
+          //  applyGradients(net.generator);
+          //  applyGradients(net.discriminator);
         }
 
         if (count % 6000 == 0)
@@ -108,6 +127,8 @@ public slots:
         int progress = (epoch + 1) * 100 / net.generator.config.epochs;
 
         emit statsUpdated(epoch + 1, lossGen, 0, progress);
+        emit printLog(QString("Current Generator Loss: %1").arg(lossGen));
+        emit printLog(QString("Current Discriminator Loss: %1").arg(lossDis));
       }
     }
 

@@ -14,3 +14,5 @@ void generatorBackpropagation(GANNetwork &fullNetwork, const Eigen::VectorXf &no
 float computeDiscriminatorLoss(const Eigen::VectorXf &realOut, const Eigen::VectorXf &fakeOut);
 
 float computeGeneratorLoss(const Eigen::VectorXf &fakeOut);
+
+Eigen::VectorXf getInputGradient(GANNetwork &fullNetwork, Sample &sample);

@@ -51,6 +51,49 @@ void discriminatorBackpropagation(GANNetwork &fullNetwork, Sample &sample)
   }
 }
 
+Eigen::VectorXf getInputGradient(GANNetwork &fullNetwork, Sample &sample)
+{
+  Network &discriminator = fullNetwork.discriminator;
+  Layer &outputLayer = discriminator.layers.back();
+  outputLayer.delta = outputLayer.a - sample.targets;
+  if (outputLayer.activation == Sigmoid)
+  {
+
+    outputLayer.delta =
+        outputLayer.delta.array() *
+        (outputLayer.a.array() * (1.0f - outputLayer.a.array()));
+  }
+  else if (outputLayer.activation == ReLU)
+  {
+    outputLayer.delta =
+        outputLayer.delta.array() *
+        (outputLayer.z.array() > 0).cast<float>();
+  }
+
+  for (int i = static_cast<int>(discriminator.layers.size()) - 2; i >= 0; i--)
+  {
+    Layer &layer = discriminator.layers[i];
+    Layer &nextLayer = discriminator.layers[i + 1];
+
+    layer.delta = nextLayer.W.transpose() * nextLayer.delta;
+
+    if (layer.activation == Sigmoid)
+    {
+      layer.delta =
+          layer.delta.array() *
+          (layer.a.array() * (1.0f - layer.a.array()));
+    }
+    else if (layer.activation == ReLU)
+    {
+      layer.delta =
+          layer.delta.array() *
+          (layer.z.array() > 0).cast<float>();
+    }
+  }
+
+  return discriminator.layers[0].W.transpose() * discriminator.layers[0].delta;
+}
+
 void generatorBackpropagation(GANNetwork &fullNetwork, const Eigen::VectorXf &noise, const Eigen::VectorXf &discriminatorGradient)
 {
   Network &generator = fullNetwork.generator;

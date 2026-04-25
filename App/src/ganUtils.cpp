@@ -166,3 +166,113 @@ float computeGeneratorLoss(const Eigen::VectorXf &fakeOut)
 
   return loss;
 }
+
+Eigen::VectorXf computeMeanImage(const Dataset &data, int digit)
+{
+  int imageVectorSize = data.samples[0].inputs.size(); // 784 for MNIST becuase 28*28 images are inputs
+  Eigen::VectorXf meanImage = Eigen::VectorXf::Zero(imageVectorSize);
+  int digitCount = 0;
+  for (const Sample &s : data.samples)
+  {
+    if (s.digit == digit)
+    {
+      meanImage += s.inputs;
+      digitCount++;
+    }
+  }
+
+  if (digitCount > 0)
+  {
+    meanImage /= digitCount;
+  }
+  else
+  {
+    std::cout << "No samples found for this digit when calculating mean image: " << digit << std::endl;
+  }
+
+  return meanImage;
+}
+
+Eigen::VectorXf computeStdDevImage(const Dataset &data, const Eigen::VectorXf &meanImage, int digit)
+{
+  int imageVectorSize = meanImage.size();
+  Eigen::VectorXf stdDevImage = Eigen::VectorXf::Zero(imageVectorSize);
+  int digitCount = 0;
+  for (const Sample &s : data.samples)
+  {
+    if (s.digit == digit)
+    {
+      Eigen::VectorXf diff = s.inputs - meanImage;
+      stdDevImage += diff.array().square().matrix();
+      digitCount++;
+    }
+  }
+
+  if (digitCount > 0)
+  {
+    stdDevImage /= digitCount;
+  }
+  else
+  {
+    std::cout << "No samples found for this digit when calculating std dev image: " << digit << std::endl;
+  }
+
+  stdDevImage = stdDevImage.array().sqrt();
+
+  return stdDevImage;
+}
+
+Eigen::VectorXf computeDatasetVariance(Dataset &data)
+{
+  Eigen::VectorXf f_divs = Eigen::VectorXf::Zero(10); // for digits 0,1,2,3,4,5,6,7,8,9
+  // loops over all different sample varieties we want to calculate f_div(digit) for
+  for (int digit = 0; digit <= 9; digit++)
+  {
+    const Eigen::VectorXf meanImage = computeMeanImage(data, digit);
+    Eigen::VectorXf stdDevImage = computeStdDevImage(data, meanImage, digit);
+    float f_div = stdDevImage.mean();
+    f_divs[digit] = f_div;
+  }
+
+  float maxVal = f_divs.maxCoeff();
+  if (maxVal > 0.0f)
+  {
+    f_divs /= maxVal;
+  }
+  else
+  {
+    std::cout << "Max variance is 0, skipping division" << std::endl;
+  }
+
+  return f_divs;
+}
+
+float getLatentRatio(GANNetwork &fullNetwork, const Eigen::VectorXf &digitInput, std::mt19937 &rng)
+{
+  std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+
+  Eigen::VectorXf z1(100), z2(100);
+  for (int i = 0; i < 100; i++)
+  {
+    z1(i) = dist(rng);
+    z2(i) = dist(rng);
+  }
+
+  Eigen::VectorXf input1(110);
+  input1 << z1, digitInput;
+  Eigen::VectorXf input2(110);
+  input2 << z2, digitInput;
+
+  forwardPass(fullNetwork.generator, input1);
+  Eigen::VectorXf x1 = fullNetwork.generator.layers.back().a;
+  forwardPass(fullNetwork.generator, input2);
+  Eigen::VectorXf x2 = fullNetwork.generator.layers.back().a;
+
+  float latentDist = (z1 - z2).norm();
+  latentDist = std::max(latentDist, 1e-6f);
+
+  float outputDist = (x1 - x2).norm() / std::sqrt(x1.size());
+
+  float ratio = outputDist / latentDist;
+  return ratio;
+}

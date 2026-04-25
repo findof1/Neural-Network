@@ -269,7 +269,16 @@ private slots:
     std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
     for (int i = 0; i < 100; i++)
       z(i) = dist(rng);
-    forwardPass(trainedGAN.generator, z);
+
+    std::uniform_int_distribution<int> digitDist(0, 9);
+    int c = digitDist(rng);
+    Eigen::VectorXf oneHot(10);
+    oneHot.setZero();
+    oneHot(c) = 1.0f;
+
+    Eigen::VectorXf input(110);
+    input << z, oneHot;
+    forwardPass(trainedGAN.generator, input);
     showSampleImage(trainedGAN.generator.layers.back().a, true);
   }
 

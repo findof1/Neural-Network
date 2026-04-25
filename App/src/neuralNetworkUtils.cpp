@@ -184,6 +184,7 @@ Dataset loadMNISTCSV(const std::string &path)
     sample.inputs = Eigen::VectorXf(784);
     sample.targets = Eigen::VectorXf::Zero(10);
     sample.targets[label] = 1.0f;
+    sample.digit = label;
 
     for (int i = 0; i < 784; i++)
     {

@@ -27,7 +27,7 @@ public slots:
     net.generator.config.batchSize = batchSize;
     net.generator.config.learningRate = lr;
 
-    addLayer(net.generator, 100, 128, ReLU);
+    addLayer(net.generator, 110, 128, ReLU);
     addLayer(net.generator, 128, 256, ReLU);
     addLayer(net.generator, 256, 512, ReLU);
     addLayer(net.generator, 512, 784, Sigmoid);
@@ -60,7 +60,16 @@ public slots:
         for (int i = 0; i < 100; i++)
           z(i) = dist(rng);
 
-        forwardPass(net.generator, z);
+        std::uniform_int_distribution<int> digitDist(0, 9);
+        int c = digitDist(rng);
+        Eigen::VectorXf oneHot(10);
+        oneHot.setZero();
+        oneHot(c) = 1.0f;
+
+        Eigen::VectorXf input(110);
+        input << z, oneHot;
+
+        forwardPass(net.generator, input);
         Eigen::VectorXf fakeData = net.generator.layers.back().a;
 
         forwardPass(net.discriminator, sample.inputs);
@@ -85,7 +94,7 @@ public slots:
 
         Eigen::VectorXf realOut = net.discriminator.layers.back().a;
 
-        forwardPass(net.generator, z);
+        forwardPass(net.generator, input);
         fakeData = net.generator.layers.back().a;
 
         forwardPass(net.discriminator, fakeData);
@@ -97,7 +106,7 @@ public slots:
 
         Eigen::VectorXf fakeGradient = getInputGradient(net, genTarget);
 
-        generatorBackpropagation(net, z, fakeGradient);
+        generatorBackpropagation(net, input, fakeGradient);
 
         applyGradients(net.generator);
 

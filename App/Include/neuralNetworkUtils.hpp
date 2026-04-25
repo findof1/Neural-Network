@@ -16,6 +16,7 @@ struct Sample
 {
   Eigen::VectorXf inputs;
   Eigen::VectorXf targets;
+  int digit;
 };
 
 struct Dataset
